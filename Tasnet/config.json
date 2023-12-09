@@ -10,16 +10,17 @@
             "layer": 8,
             "stack": 3,
             "kernel":3,
-            "num_spk": 2
+            "num_spk": 2,
+            "tf_attention": false
         }
     },
     "data_loader": {
-        "type": "NoisyWsjDataLoader",
+        "type": "Old_Partial_DataLoader",
         "args":{
 
             "csv_file": "/dsi/gannot-lab/datasets/mordehay/data_wham_partial_overlap/train/csv_files/with_wham_noise_res.csv",
             "cds_lables":  "/dsi/gannot-lab/datasets/mordehay/data_wham_partial_overlap/train/labels_npz/",
-            "batch_size": 16,
+            "batch_size": 8,
             "type_dataset": "old",
             "shuffle": true,
             "validation_split": 0.2,
@@ -57,7 +58,7 @@
     },
     "trainer": {
         "epochs": 1000,
-        "save_dir": "/dsi/gannot-lab/datasets/mordehay/Result/ConvTasnetBaseLine",
+        "save_dir": "/dsi/gannot-lab/datasets/mordehay/Result/ConvTasnetBaseLine_Again",
         "save_period": 1,
         "verbosity": 2,
         "max_clip": 5,
@@ -66,12 +67,23 @@
         "tensorboard": true
     },
     "tester": {
-
-        "save_test": "/dsi/gannot-lab/datasets/mordehay/Result/test_for_git/ConvTasnetBaseLine_Test/",
-        "csv_file_test":"/dsi/gannot-lab/datasets/mordehay/data_wham_partial_overlap/test/csv_files/with_wham_noise_res.csv",
+        "GradCam": false,
+        "online":{
+            "online_bool": true,
+            "similarity_bool": true,
+            "l1_loss_similarity": true,
+            "si_sdr_loss_similarity": false
+        },
+        "cs_bool": false,
+        "save_test": "/dsi/scratch/from_netapp/users/mordehay/Results/Separation_data_wham_partial_overlap_ModoluDial_inputActivity_AttentionBeforeSum_TFqkv_Attention_LNpSkipCon_ValueEmb_ResidualLN_Test/",
+        "csv_file_test": "/dsi/gannot-lab/datasets/mordehay/data_wham_partial_overlap/test/csv_files/with_wham_noise_res.csv",
         "cds_lables": "/dsi/gannot-lab/datasets/mordehay/data_wham_partial_overlap/test/labels_npz/",
         "type_dataset": "old",
-        "save_test_real": "/dsi/gannot-lab/datasets/mordehay/Result/real_world/Tasnet/renana_daniel_english/",
-        "save_dir": "save_test_RandT60/"
+        "save_test_real":  "/dsi/scratch/from_netapp/users/mordehay/Result_movearr_13_10_mm/",
+        "save_test_robot": "/dsi/scratch/from_netapp/users/mordehay/BaseLine_Results/ConvTasnet/Robot_Samples_LibriSpeech_RandomLoc/",
+        "path2samples_robot": "/dsi/scratch/from_netapp/users/mordehay/Robot_Samples_LibriSpeech_RandomLoc/",
+        "path2samples_robot_dynamic": "/dsi/gannot-lab/datasets/mix_move_arr/rev055/mix/",
+        "save_test_robot_dynamic": "/dsi/scratch/from_netapp/users/mordehay/BaseLine_Results/ConvTasnet/Results_mix_move_arr_clean_rev055_2/"
+
     }
 }

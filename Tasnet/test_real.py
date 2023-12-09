@@ -233,7 +233,7 @@ def main(config):
             audio = data#data[:, 2]
             
     if m4a_bool:    
-        path_audio = "/home/dsi/moradim/OurBaselineModels/Tasnet/real_recordings_wav/renana_daniel_english.wav"
+        path_audio = "/home/dsi/moradim/OurBaselineModels/Tasnet/movearr_13_10_mm.wav"
         #name_run = os.path.basename(path_audio)[:-4]
         wav_name= path_audio[:-4]
         #os.system("ffmpeg -i {0}  {1}.wav".format(path_audio, wav_name))

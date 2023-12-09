@@ -176,11 +176,40 @@ class DepthConv1d(nn.Module):
             return residual, skip
         else:
             return residual
+    
+class TF_Attention(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.conv1d_t_1 = nn.Conv1d(1, 1, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.conv1d_t_2 = nn.Conv1d(1, 1, kernel_size=3, stride=1, padding=2, dilation=2)
+        self.sigmoid_t = nn.Sigmoid()
+        self.prelu_t = nn.PReLU()
+        self.adapt_avrg_pooling_t = nn.AdaptiveAvgPool2d((1, None))
         
+        self.conv1d_f_1 = nn.Conv1d(1, 1, kernel_size=3, stride=1, padding=1, dilation=1)
+        self.conv1d_f_2 = nn.Conv1d(1, 1, kernel_size=3, stride=1, padding=2, dilation=2)
+        self.sigmoid_f = nn.Sigmoid()
+        self.prelu_f = nn.PReLU()
+        self.adapt_avrg_pooling_f = nn.AdaptiveAvgPool2d((None, 1))
+        
+    def forward(self, input):
+        output_t = self.adapt_avrg_pooling_t(input) #[B, 1, T]
+        output_t = self.sigmoid_t(self.prelu_t(self.conv1d_t_2(self.conv1d_t_1(output_t))))
+        
+        output_f = self.adapt_avrg_pooling_f(input) #[B, F, 1]
+        output_f = torch.transpose(output_f, 1, 2) #[B, 1, F]
+        output_f = self.sigmoid_f(self.prelu_f(self.conv1d_f_2(self.conv1d_f_1(output_f))))
+        output_f = torch.transpose(output_f, 1, 2) #[B, F, 1]
+        
+        attention_w = output_f @ output_t #[B, F, T]
+        output = input * attention_w 
+        return output    
+    
+
 class TCN(nn.Module):
     def __init__(self, input_dim, output_dim, BN_dim, hidden_dim,
                  layer, stack, kernel=3, skip=True, 
-                 causal=False, dilated=True):
+                 causal=False, dilated=True, tf_attention=False):
         super(TCN, self).__init__()
         
         # input is a sequence of features of shape (B, N, L)
@@ -196,14 +225,20 @@ class TCN(nn.Module):
         # TCN for feature extraction
         self.receptive_field = 0
         self.dilated = dilated
-        
+        self.tf_attention = tf_attention
         self.TCN = nn.ModuleList([])
+        if self.tf_attention:
+            self.time_freq_attnetion = nn.ModuleList([])
         for s in range(stack):
             for i in range(layer):
                 if self.dilated:
                     self.TCN.append(DepthConv1d(BN_dim, hidden_dim, kernel, dilation=2**i, padding=2**i, skip=skip, causal=causal)) 
                 else:
                     self.TCN.append(DepthConv1d(BN_dim, hidden_dim, kernel, dilation=1, padding=1, skip=skip, causal=causal))   
+                
+                if self.tf_attention:
+                    self.time_freq_attnetion.append(TF_Attention())
+                
                 if i == 0 and s == 0:
                     self.receptive_field += kernel
                 else:
@@ -239,6 +274,8 @@ class TCN(nn.Module):
         else:
             for i in range(len(self.TCN)):
                 residual = self.TCN[i](output)
+                if self.tf_attention:
+                    residual = self.time_freq_attnetion[i](residual)
                 output = output + residual
             
         # output layer

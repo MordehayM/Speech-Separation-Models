@@ -8,6 +8,7 @@ from utility import conv_tasnet as module_arch
 from parse_config import ConfigParser
 import matplotlib.pyplot as plt
 import model.sdr as module_func_loss
+from model.stoi_metric import Stoi
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -15,6 +16,7 @@ from scipy.io.wavfile import write
 import subprocess
 from utils import prepare_device
 from torch import Tensor
+from pypesq import pesq
 
 def _check_same_shape(preds: Tensor, target: Tensor) -> None:
     """Check that predictions and target have the same shape, else raise error."""
@@ -190,7 +192,12 @@ def main(config):
     value_separation_start = {}
     si_sdr_per_spk= []
     si_sdr_per_spk_start = []
-
+    stoi_calc = Stoi()
+    stoi_list = []
+    initial_stoi_list = []
+    pesq_spk0_list = []
+    pesq_spk1_list = []
+    pesq_initial_list = []
     
     with torch.no_grad():
         for batch_idx, sample_separation in enumerate(tqdm(data_loader)):
@@ -221,6 +228,9 @@ def main(config):
             
             out_separation = reorder_source_mse(out_separation, batch_indices_separation)
             #reduce_kwargs = {'src': target} #I dont do reduce with csd
+            stoi_value = stoi_calc(out_separation, target_separation)
+            print(stoi_value)
+            stoi_list.append(stoi_value.item())
             
             si_sdr_spk = scale_invariant_signal_distortion_ratio(out_separation, target_separation) #shape=[B, num_spk]
             #print(si_sdr_spk.shape)
@@ -233,7 +243,21 @@ def main(config):
             si_sdr_spk_start = scale_invariant_signal_distortion_ratio(mix, target_separation)
             si_sdr_per_spk_start.append(np.array(si_sdr_spk_start.detach().cpu())[0])
             
-        
+            stoi_initial_value = stoi_calc(mix, target_separation)
+            print(stoi_initial_value)
+            initial_stoi_list.append(stoi_initial_value.item())
+            
+            pesq_initial = pesq(target_separation[0, 0].cpu().numpy(), data[0].cpu().numpy(), 16000)
+            pesq_initial_list.append(pesq_initial)
+            #print(mean_sisdr)
+            #print(pesq_initial)
+            #pesq_spk0 = pesq(16000, target_separation[0, 0].cpu().numpy(), out_separation[0, 0].cpu().numpy(), 'wb')
+            pesq_spk0 = pesq(target_separation[0, 0].cpu().numpy(), out_separation[0, 0].cpu().numpy(), 16000)
+            pesq_spk0_list.append(pesq_spk0)
+            #pesq_spk1 = pesq(16000, target_separation[0, 1].cpu().numpy(), out_separation[0, 1].cpu().numpy(), 'wb')
+            pesq_spk1 = pesq(target_separation[0, 1].cpu().numpy(), out_separation[0, 1].cpu().numpy(), 16000)
+            pesq_spk1_list.append(pesq_spk1)
+            mean_pesq = (pesq_spk0 + pesq_spk1) / 2
             
             #print(com1)
             #print(com0)
@@ -265,7 +289,7 @@ def main(config):
                 si_sdri = metric(out_separation, target_separation, data)
                 total_metrics_separation_mix[i] += si_sdri.detach() * batch_size
             #print(si_sdri)
-            save_test_path_full = f"{save_test_path}Batch_{batch_idx}_SiSDRI_{si_sdri.item():.2f}_SiSDR_{torch.mean(si_sdr_spk):.2f}_Reverb_{reverb.item():.2f}_Snr_{snr.item():.2f}/"
+            save_test_path_full = f"{save_test_path}Batch_{batch_idx}_SiSDRI_{si_sdri.item():.2f}_SiSDR_{torch.mean(si_sdr_spk):.2f}_Reverb_{reverb.item():.2f}_Snr_{snr.item():.2f}_Stoi_{stoi_value.item():.2f}_Pesq_{mean_pesq:.2f}/"
             """########
             #print(output_vad.shape)
             Path(f"{save_test_path_full}").mkdir(parents=True, exist_ok=True)
@@ -307,9 +331,10 @@ def main(config):
     scenario = np.arange(0, n_samples + 1)
 
     df = pd.DataFrame(list(zip(scenario, reverbs, snrs, si_sdris, si_sdrs, si_sdrs_start, si_sdr_per_spk_start[:, 0], si_sdr_per_spk_start[:, 1],
-                              si_sdr_per_spk[:, 0], si_sdr_per_spk[:, 1])),
+                              si_sdr_per_spk[:, 0], si_sdr_per_spk[:, 1], stoi_list, initial_stoi_list,
+                                   pesq_spk0_list, pesq_spk1_list, pesq_initial_list)),
             columns =['scenario', 'reverb', 'snr', 'si_sdri', 'si_sdr', 'si_sdr_start', 'si_sdr_start_speaker0', 'si_sdr_start_speaker1',
-                    'si_sdr_speaker0', 'si_sdr_speaker1'])
+                    'si_sdr_speaker0', 'si_sdr_speaker1', 'stoi', 'initial_stoi', 'pesq_spk0', 'pesq_spk1', 'pesq_initial'])
 
 
         
@@ -339,6 +364,13 @@ def main(config):
     axs.hist(si_sdrs, bins="sqrt", density=True)
     axs.set_title(f"The mean sdr is {mean_sdr}")
     plt.savefig(f"{save_test_path}hist_si_sdr.png")
+    
+    mean_stoi_list = np.mean(stoi_list) 
+    fig, axs = plt.subplots(1, 1)
+    axs.hist(stoi_list, bins="sqrt", density=True)
+    axs.set_title(f"The mean stoi is {mean_stoi_list}")
+    plt.savefig(f"{save_test_path}hist_stoi.png")
+
         
     log = {'loss': total_loss / n_samples}
     log.update({
@@ -348,13 +380,16 @@ def main(config):
     log.update({
         met.__name__: total_metrics_separation_mix[i].item() / n_samples for i, met in enumerate(metrics["separation_mix"])
     })
+    log.update({
+        "stoi": np.mean(stoi_list)
+    })
 
     logger.info(log)
 
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser(description='PyTorch Template')
-    args.add_argument('-c', '--config', default="/home/lab/renana/PycharmProjects/Conv-TasNet/Conv-TasNet-master/config.json", type=str,
+    args.add_argument('-c', '--config', default="/home/dsi/moradim/OurBaselineModels/Tasnet/config.json", type=str,
                       help='config file path (default: None)')
     args.add_argument('-r', '--resume', default="/dsi/gannot-lab/datasets/mordehay/Result/ConvTasnetBaseLine/models/AV_model/1128_120624/model_best.pth",
                                     type=str, help='path to latest checkpoint (default: None)')

@@ -8,7 +8,7 @@ from . import models
 # Conv-TasNet
 class TasNet(nn.Module):
     def __init__(self, enc_dim=512, feature_dim=128, sr=16000, win=2, layer=8, stack=3, 
-                 kernel=3, num_spk=2, causal=False):
+                 kernel=3, num_spk=2, causal=False, tf_attention=False):
         super(TasNet, self).__init__()
         
         # hyper parameters
@@ -24,13 +24,14 @@ class TasNet(nn.Module):
         self.stack = stack
         self.kernel = kernel
         self.causal = causal
+        self.tf_attention = tf_attention
         
         # input encoder
         self.encoder = nn.Conv1d(1, self.enc_dim, self.win, bias=False, stride=self.stride)
         
         # TCN separator
         self.TCN = models.TCN(self.enc_dim, self.enc_dim*self.num_spk, self.feature_dim, self.feature_dim*4,
-                              self.layer, self.stack, self.kernel, causal=self.causal)
+                              self.layer, self.stack, self.kernel, causal=self.causal, tf_attention=tf_attention)
 
         self.receptive_field = self.TCN.receptive_field
         

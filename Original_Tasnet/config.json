@@ -1,0 +1,97 @@
+{
+    "name": "AV_model",
+    "n_gpu": 2,
+
+    "arch": {
+        "type": "TasNet",
+        "args": {
+            "enc_dim": 512,
+            "feature_dim": 128,
+            "layer": 8,
+            "stack": 3,
+            "kernel":3,
+            "num_spk": 2
+        }
+    },
+    "data_loader": {
+        "type": "NoisyWsjDataLoader",
+        "args":{
+
+            "csv_file": "/dsi/gannot-lab/datasets/mordehay/data_wham_partial_overlap/train/csv_files/with_wham_noise_res.csv",
+            "cds_lables":  "/dsi/gannot-lab/datasets/mordehay/data_wham_partial_overlap/train/labels_npz/",
+            "batch_size": 8,
+            "type_dataset": "old",
+            "shuffle": true,
+            "validation_split": 0.2,
+            "num_workers": 8
+        }
+    },
+    "optimizer": {
+        "type": "Adam",
+        "args":{
+            "lr": 0.001,
+            "weight_decay": 0,
+            "amsgrad": true
+        }
+    },
+    "loss": {
+        "type": "PITLossWrapper",
+        "loss_func":"pairwise_neg_sisdr",
+        "perm_reduce": false,
+        "args": {
+
+            "pit_from": "pw_mtx"
+        }
+    },
+    "loss_separation": {
+        "type": "PITLossWrapper",
+        "loss_func":"pairwise_neg_sisdr",
+        "perm_reduce": false,
+        "args": {
+
+            "pit_from": "pw_mtx"
+        }
+    },
+    "metrics": {
+        "separation": ["pit_snr", "pit_si_sdr"],
+        "separation_mix": [ "si_sdri"]
+    },
+    "lr_scheduler": {
+        "type": "ReduceLROnPlateau",
+        "args": {
+            "factor": 0.5,
+            "patience": 3,
+            "verbose": false
+        }
+    },
+    "trainer": {
+        "epochs": 1000,
+        "save_dir": "/dsi/gannot-lab/datasets/mordehay/Result/ConvTasnetBaseLine_Again",
+        "save_period": 1,
+        "verbosity": 2,
+        "max_clip": 5,
+        "monitor": "min val_loss",
+        "early_stop": 50,
+        "tensorboard": true
+    },
+    "tester": {
+        "GradCam": false,
+        "online":{
+            "online_bool": true,
+            "similarity_bool": true,
+            "l1_loss_similarity": true,
+            "si_sdr_loss_similarity": false
+        },
+        "cs_bool": false,
+        "save_test": "/dsi/scratch/from_netapp/users/mordehay/Results/check_memory/",
+        "csv_file_test": "/dsi/gannot-lab1/datasets/mordehay/data_wham_partial_overlap/test/csv_files/with_wham_noise_res_more_informative_correct.csv",
+        "cds_lables": "/dsi/gannot-lab1/datasets/mordehay/data_wham_partial_overlap/test/labels_npz/",
+        "type_dataset": "old",
+        "save_test_real":  "/dsi/scratch/from_netapp/users/mordehay/Result_check/",
+        "save_test_robot": "/dsi/scratch/from_netapp/users/mordehay/BaseLine_Results/ConvTasnet/Robot_Samples_LibriSpeech_RandomLoc_start_1p4_online_1_pad2_normalize/",
+        "path2samples_robot": "/dsi/scratch/from_netapp/users/mordehay/Robot_Samples_LibriSpeech_RandomLoc/",
+        "path2samples_robot_dynamic": "/dsi/gannot-lab/datasets/mix_move_arr/rev055/mix/",
+        "save_test_robot_dynamic": "/dsi/scratch/from_netapp/users/mordehay/BaseLine_Results/ConvTasnet/Results_mix_move_arr_clean_rev055_2/"
+
+    }
+}
